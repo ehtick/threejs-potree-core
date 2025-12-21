@@ -95,9 +95,7 @@ uniform sampler2D depthMap;
 	out float vLinearDepth;
 #endif
 
-#ifdef use_edl
-	out float vLogDepth;
-#endif
+
 
 out vec3 vViewPosition;
 
@@ -341,9 +339,8 @@ void main() {
 		vNormal = normalize(normalMatrix * normal);
 	#endif
 
-	#ifdef use_edl
-		vLogDepth = log2(-mvPosition.z);
-	#endif
+	// EDL alpha (log2(linearDepth)) is written in the fragment shader so it can
+	// account for per-fragment depth adjustments (e.g. paraboloid point shape).
 
 
 	// POINT SIZE COMPUTATION

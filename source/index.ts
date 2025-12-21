@@ -7,5 +7,7 @@ export * from './point-cloud-octree-picker';
 export * from './point-cloud-octree';
 export * from './point-cloud-tree';
 export * from './potree';
+export * from './rendering/edl-pass';
+export * from './rendering/potree-renderer';
 export * from './types';
 export * from './version';

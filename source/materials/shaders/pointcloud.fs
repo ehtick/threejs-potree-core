@@ -41,10 +41,7 @@ out vec4 fragColor;
 	in float vLinearDepth;
 #endif
 
-#ifdef use_edl
-	// Log depth for EDL rendering
-	in float vLogDepth;
-#endif
+
 
 in vec3 vViewPosition;
 #if defined(weighted_splats) || defined(paraboloid_point_shape)
@@ -206,8 +203,10 @@ void main() {
 	#endif
 
 	#if defined(use_edl)
-		// For EDL, pass the log depth
-		fragColor.a = vLogDepth;
+		// For EDL, store log2(linearDepth) in alpha.
+		// This is recomputed here (rather than in VS) so it matches per-fragment depth
+		// adjustments such as paraboloid point shape.
+		fragColor.a = log2(max(linearDepth, 1e-6));
 	#endif
 
 	#if defined(highlight_point)

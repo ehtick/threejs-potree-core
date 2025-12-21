@@ -1,11 +1,24 @@
 import { AmbientLight, BoxGeometry,  Euler,  Mesh, MeshBasicMaterial, PerspectiveCamera, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGLRenderer } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { PointCloudOctree, Potree } from '../source';
+import { PointCloudOctree, Potree, PotreeRenderer } from '../source';
 
 document.body.onload = function()
 {
 	const potree = new Potree();
 	let pointClouds: PointCloudOctree[] = [];
+
+	// EDL settings
+	const potreeRenderer = new PotreeRenderer({
+		edl: {
+			enabled: false,
+			pointCloudLayer: 1,
+			strength: 0.4,
+			radius: 1.4,
+			opacity: 1.0,
+		},
+	});
+	// if you want to enable EDL at start up, uncomment the following line.
+	// potreeRenderer.setEDL({ enabled: true });
 
 	// three.js
 	const scene = new Scene();
@@ -58,9 +71,9 @@ document.body.onload = function()
 		console.log('Potree.pick :>> ', I?.position, performance.now() - start1);
 
 		const start2 = performance.now();
-        const intesects = raycaster.intersectObject(scene, true);
-        if (intesects.length > 0) {
-            console.log('iraycaster.intersectObject :>> ', intesects[0].point, performance.now() - start2);
+		const intesects = raycaster.intersectObject(scene, true);
+		if (intesects.length > 0) {
+			console.log('iraycaster.intersectObject :>> ', intesects[0].point, performance.now() - start2);
 		}
 	};
 
@@ -78,44 +91,44 @@ document.body.onload = function()
 			scene.add(sphere);
 		}
 	};
-	
+
 	loadPointCloud('/data/lion_takanawa/', 'cloud.js', new Vector3(-4, -2, 5), new Euler(-Math.PI / 2, 0, 0));
 	loadPointCloud('/data/pump/', 'metadata.json', new Vector3(0, -1.5, 3), new Euler(-Math.PI / 2, 0, 0), new Vector3(2, 2, 2));
-	
+
 	function loadPointCloud(baseUrl: string, url: string, position?: Vector3, rotation?: Euler, scale?: Vector3)
 	{
 		potree.loadPointCloud(url, baseUrl).then(function(pco: PointCloudOctree)
-			{
-				pco.material.size = 1.0;
-				pco.material.shape = 2;
-				pco.material.inputColorEncoding = 1;
-				pco.material.outputColorEncoding = 1;
+		{
+			pco.material.size = 1.0;
+			pco.material.shape = 2;
+			pco.material.inputColorEncoding = 1;
+			pco.material.outputColorEncoding = 1;
 
-				if (position){pco.position.copy(position);}
-				if (rotation){pco.rotation.copy(rotation);}		
-				if (scale){pco.scale.copy(scale);}
-				
-				console.log('Pointcloud file loaded', pco);
-				pco.showBoundingBox = false;
-				
-				const box = pco.pcoGeometry.boundingBox;
-				const size = box.getSize(new Vector3());
+			if (position){pco.position.copy(position);}
+			if (rotation){pco.rotation.copy(rotation);}		
+			if (scale){pco.scale.copy(scale);}
 
-				const geometry = new BoxGeometry(size.x, size.y, size.z);
+			console.log('Pointcloud file loaded', pco);
+			pco.showBoundingBox = false;
+
+			const box = pco.pcoGeometry.boundingBox;
+			const size = box.getSize(new Vector3());
+
+			const geometry = new BoxGeometry(size.x, size.y, size.z);
 				const material = new MeshBasicMaterial({color:0xFF0000, wireframe: true});
-				const mesh = new Mesh(geometry, material);
-				mesh.position.copy(pco.position);
-				mesh.scale.copy(pco.scale);
-				mesh.rotation.copy(pco.rotation);
-				mesh.raycast = () => false;
+			const mesh = new Mesh(geometry, material);
+			mesh.position.copy(pco.position);
+			mesh.scale.copy(pco.scale);
+			mesh.rotation.copy(pco.rotation);
+			mesh.raycast = () => false;
 
-				size.multiplyScalar(0.5);
-				mesh.position.add(new Vector3(size.x, size.y, -size.z));
+			size.multiplyScalar(0.5);
+			mesh.position.add(new Vector3(size.x, size.y, -size.z));
 
-				scene.add(mesh);
+			scene.add(mesh);
 
-				add(pco);
-			});
+			add(pco);
+		});
 	}
 
 	function add(pco: PointCloudOctree): void {
@@ -139,7 +152,11 @@ document.body.onload = function()
 		potree.updatePointClouds(pointClouds, camera, renderer);
 
 		controls.update();
-		renderer.render(scene, camera);
+
+		potreeRenderer.render({ renderer, scene, camera, pointClouds });
+
+		// If you are not using EDL, you can render the scene directly with the standard three.js renderer:
+		// renderer.render(scene, camera);
 
 		requestAnimationFrame(loop);
 	}
@@ -155,7 +172,7 @@ document.body.onload = function()
 		camera.aspect = width / height;
 		camera.updateProjectionMatrix();
 	};
-	
+
 	// @ts-ignore
 	document.body.onresize();
 };
