@@ -1,6 +1,9 @@
 // Adapted from the EDL shader code from Christian Boucheny in Cloud Compare
 // https://github.com/cloudcompare/trunk/tree/master/plugins/qEDL/shaders/EDL
 
+precision highp float;
+precision highp int;
+
 // Uniforms
 uniform float screenWidth;         // The width of the screen (or render target) in pixels.
 uniform float screenHeight;        // The height of the screen in pixels.
@@ -10,8 +13,13 @@ uniform float radius;              // Radius used to determine neighbor distance
 uniform float opacity;             // Global opacity for shaded output.
 uniform sampler2D colorMap;        // Texture containing both color data and depth (in its alpha channel).
 
+// Projection matrix used to reconstruct regular depth from log depth.
+uniform mat4 uProj;
+
 // Varying variable passed from the vertex shader:
-varying vec2 vUv;                // Texture coordinates for the current fragment.
+in vec2 vUv;                       // Texture coordinates for the current fragment.
+
+out vec4 fragColor;
 
 // Function to compute the shading response based on depth differences:
 float response(const float depth) {
@@ -24,7 +32,12 @@ float response(const float depth) {
 		// Calculate the texture coordinate for the neighbor.
 		vec2 uvNeighbor = vUv + uvRadius * neighbours[i];
 		// Retrieve the neighbor's depth value from the alpha channel of the texture.
-		float neighbourDepth = texture2D(colorMap, uvNeighbor).a;
+		float neighbourDepth = texture(colorMap, uvNeighbor).a;
+		
+		// Background marker: upstream Potree clears alpha to 1.0 and treats it as background.
+		// Alpha stores log2(linearDepth), so alpha==1.0 could theoretically collide with real geometry at linearDepth==2.0.
+		// We keep this convention for visual parity with upstream.
+		neighbourDepth = (neighbourDepth == 1.0) ? 0.0 : neighbourDepth;
 		
 		// Check if the neighbor has a valid depth.
 		if (neighbourDepth != 0.0) {
@@ -40,10 +53,13 @@ float response(const float depth) {
 
 void main() {
 	// Sample the texture at the current fragment's coordinates.
-	vec4 color = texture2D(colorMap, vUv);
+	vec4 color = texture(colorMap, vUv);
 	
 	// Use the alpha channel as the depth value.
 	float depth = color.a;
+	// Treat alpha==1.0 as background (see comment in response()).
+	depth = (depth == 1.0) ? 0.0 : depth;
+	
 	// Compute the depth difference response using neighbor sampling.
 	float res = response(depth);
 	
@@ -52,11 +68,18 @@ void main() {
 	// Compute the shading value with an exponential decay function.
 	float shade = exp(-res * factor);
 	
-	// Discard fragments with no valid color and no response (to optimize rendering).
-	if (color.a == 0.0 && res == 0.0) {
+	// Discard fragments with no valid depth.
+	// (Keeps behavior close to upstream: background is cleared and not composited.)
+	if (depth == 0.0) {
 		discard;
 	}
 	
 	// Output the final color by combining the original color with the shading effect, and applying the set opacity.
-	gl_FragColor = vec4(color.rgb * shade, opacity);
+	fragColor = vec4(color.rgb * shade, opacity);
+	
+	// Write regular hyperbolic depth values to depth buffer, reconstructed from log depth.
+	float dl = pow(2.0, depth);
+	vec4 dp = uProj * vec4(0.0, 0.0, -dl, 1.0);
+	float pz = dp.z / dp.w;
+	gl_FragDepth = (pz + 1.0) / 2.0;
 }
